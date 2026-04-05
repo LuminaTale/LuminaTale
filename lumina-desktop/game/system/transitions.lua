@@ -17,6 +17,13 @@ reg("dissolve", {
     }
 })
 
+-- "fade" 用于场景切换的淡入淡出交叉溶解
+reg("fade", {
+    duration = 0.5,
+    easing = "ease_in_out",
+    props = {}  -- 场景切换由内部 trans_progress 驱动，无需额外属性
+})
+
 reg("fade_in", {
     duration = 0.5,
     easing = "linear",

@@ -1,6 +1,6 @@
 use crate::config::WindowConfig;
 use crate::core::{AssetManager, AudioPlayer, Painter};
-use crate::screens::{main_menu::MainMenuScreen, Screen, ScreenTransition};
+use crate::screens::{ingame::GameScreen, Screen, ScreenTransition};
 use crate::ui::UiDrawer;
 use crate::vk_utils::context::VulkanRenderContext;
 use crate::vk_utils::renderer::VulkanRenderer;
@@ -87,10 +87,10 @@ impl SkiaRenderer {
             log::warn!("Shader file not found: {:?}", trans_shader_path);
         }
 
-        let ctx = Ctx::default();
+        let mut ctx = Ctx::default();
 
-        let initial_screen: Box<dyn Screen> =
-            Box::new(MainMenuScreen::new(manager.clone()));
+        let driver = lumina_core::renderer::driver::ExecutorHandle::new(&mut ctx, manager.clone());
+        let initial_screen: Box<dyn Screen> = Box::new(GameScreen::new(driver));
 
         Self {
             render_ctx: VulkanRenderContext::default(),
@@ -200,12 +200,6 @@ impl ApplicationHandler for SkiaRenderer {
                 }
 
                 match transition {
-                    ScreenTransition::Push(s) => self.screens.push(s),
-                    ScreenTransition::Pop => { self.screens.pop(); },
-                    ScreenTransition::Replace(s) => {
-                        self.screens.pop();
-                        self.screens.push(s);
-                    },
                     ScreenTransition::Quit => event_loop.exit(),
                     ScreenTransition::None => {},
                 }

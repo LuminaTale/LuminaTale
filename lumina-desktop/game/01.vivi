@@ -1,20 +1,70 @@
+character ch1 name="小花" image_tag=ch1
+character ch2 name="春子" image_tag=ch2
+
 label init
 
-    scene bg demo
-    :这是一个普通的背景
-    :接下来我们要演示 Shader 圆形转场效果
-    scene bg demo1 with circle_open
-    :背景应该像光圈一样打开
+    screen main_menu
+        zbox
+            image "bg_demo"
+            frame x=760 y=240 width=400 height=520
+                vbox
+                    text "LuminaTale" size=60 color="#ffe8c8" align=center
+                    text "A Visual Novel Demo" size=24 color="#aaaaaa" align=center
+                    button "开始游戏" action="jump ch1_start" bg="#3c64c8" color="#ffffff" border_radius=8
+                    button "退出" action=quit color="#ff6464"
+                envbox
+            enframe
+        enzbox
+    enscreen
 
-    :接下来我们要演示 Shader 百叶窗转场效果
-    scene bg demo with blinds_horiz
+    screen dialogue
+        frame x=0 y=800 width=1920 height=280 bg="#000000cc"
+            vbox
+                text "f._speaker" size=28 color="#ffe8c8"
+                text "f._display" size=24 color="#ffffff"
+                button "▶ 继续" action=continue color="#888888"
+            envbox
+        enframe
+    enscreen
 
-    :我们再试一次立绘的转场
-    show ch2 at center
-    -- 这一步是有问题的因为目前演示中的ch2两次的尺寸不匹配
-    :要变化喽
-    show ch2 happy with circle_open
+    screen choice_menu
+        frame x=560 y=260 width=800 height=480 bg="#111133" border_radius=12
+            vbox
+                text "f._choice_title" size=28 color="#ffffff" align=center
+                button "f._choice_0" action="choice 0" bg="#3c64c8" color="#ffffff" border_radius=8
+                button "f._choice_1" action="choice 1" bg="#3c64c8" color="#ffffff" border_radius=8
+            envbox
+        enframe
+    enscreen
 
-    :测试结束!
+    $ lumina.ui.show_screen("main_menu")
 
+enlb
+
+label ch1_start
+    play music "bgm_1" loop
+    scene bg_demo with fade
+    show ch1 at left with jelly_pop
+    ch1: "你好！我叫小花，欢迎来到 LuminaTale！"
+    ch1: "这是一个简单的视觉小说引擎示例。"
+    show ch2 at right with jelly_pop
+    ch2: "嗨～我是春子！很高兴认识你！"
+    : 小花看向你，微笑着问道……
+    choice "你想做什么？"
+        "继续冒险":
+            jump ch1_adventure
+        "先休息一下":
+            jump ch1_rest
+    enco
+enlb
+
+label ch1_adventure
+    ch1: "好！我们出发吧！"
+    scene bg_demo1 with fade
+    : 故事就此展开……
+enlb
+
+label ch1_rest
+    ch2: "好的，那我们先休息一下吧。"
+    ch1: "嗯，等会儿再说吧。"
 enlb

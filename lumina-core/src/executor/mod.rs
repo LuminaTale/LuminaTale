@@ -18,17 +18,19 @@ use crate::executor::walk::{walk_stmt, NextAction, StmtEffect};
 use crate::lua_glue::{self, CommandBuffer, LuaCommand};
 use crate::storager::types::FrameSnapshot;
 use crate::manager::ScriptManager;
+use crate::typewriter_bridge::TypewriterBridge;
 
 #[derive(Clone)]
 pub struct Executor {
     call_stack: CallStack,
-    lua: Lua,
+    pub lua: Lua,
     cmd_buffer: CommandBuffer,
     pending_choice: Option<Vec<(String, Vec<Stmt>)>>,
     pause: bool,
 
     manager: Arc<ScriptManager>,
     dynamic_registry: HashSet<String>,
+    pub typewriter_bridge: TypewriterBridge,
 }
 
 impl std::fmt::Debug for Executor {
@@ -41,11 +43,13 @@ impl std::fmt::Debug for Executor {
 }
 
 impl Executor {
+    /// 创建执行器：初始化 Lua VM、注册引擎 API，并加载 boot.lua。
     pub fn new(manager: Arc<ScriptManager>) -> Self{
         let lua = unsafe {
             Lua::unsafe_new_with(StdLib::ALL, LuaOptions::default())
         };
-        let cmd_buffer = lua_glue::init_lua(&lua);
+        let tw_bridge = TypewriterBridge::new();
+        let cmd_buffer = lua_glue::init_lua(&lua, &tw_bridge);
 
         let exe = Self {
             call_stack: CallStack::default(),
@@ -55,6 +59,7 @@ impl Executor {
             pause: false,
             dynamic_registry: HashSet::new(),
             manager,
+            typewriter_bridge: tw_bridge,
         };
 
         let sys_cfg: crate::config::SystemConfig = lumina_shared::config::get("system");
@@ -75,6 +80,7 @@ impl Executor {
         exe
     }
     
+    /// 初始化运行时上下文并从 `label` 标签开始执行脚本。
     pub fn start(&mut self, ctx: &mut Ctx, label: &str) {
         init_ctx_runtime(ctx);
         let global_chars = self.manager.collect_characters();
@@ -82,6 +88,7 @@ impl Executor {
         self.perform_jump(label);
     }
 
+    /// 向执行器注入用户输入事件（继续、跳转、选项等）。
     pub fn feed(&mut self, ev: InputEvent) {
         match ev {
             InputEvent::ChoiceMade { index } => {
@@ -113,10 +120,16 @@ impl Executor {
                     frame.advance();
                 }
             }
+            InputEvent::Jump(label) => {
+                self.perform_jump(&label);
+                self.pause = false;
+                self.pending_choice = None;
+            }
             _ => {}
         }
     }
 
+    /// 将 Lua `f` 表的当前值同步到 `ctx`（存档前调用）。
     pub fn sync_vars_to_ctx(&self, ctx: &mut Ctx) {
         ctx.var_f = lua_glue::extract_vars(&self.lua);
 
@@ -129,10 +142,12 @@ impl Executor {
         }
     }
 
+    /// 从 `ctx` 中恢复游戏变量到 Lua `f` 表（读档后调用）。
     pub fn sync_vars_from_ctx(&self, ctx: &mut Ctx) {
         lua_glue::inject_vars(&self.lua, &ctx.var_f);
     }
 
+    /// 从磁盘读取全局存档（global.json）并注入 Lua `sf` 表。
     pub fn load_global_data(&self) {
         match crate::storager::load_global("global.json") {
             Ok(data) => {
@@ -150,6 +165,7 @@ impl Executor {
         }
     }
 
+    /// 对当前调用栈生成快照，用于存档。
     pub fn snapshot(&self) -> Vec<FrameSnapshot> {
         self.call_stack.stack
             .iter().map(|f| FrameSnapshot {
@@ -159,6 +175,7 @@ impl Executor {
             .collect()
     }
 
+    /// 从快照恢复调用栈，用于读档。
     pub fn restore(&mut self, snap: Vec<FrameSnapshot>) {
         self.call_stack.clear();
         for fs in snap {
@@ -173,6 +190,7 @@ impl Executor {
         }
     }
 
+    /// 每帧调用 Lua `lumina_update(dt)` 钩子，驱动 Lua 侧动画。
     pub fn tick(&mut self, dt: f32) {
         let globals = self.lua.globals();
         if let Ok(update_fn) = globals.get::<mlua::Function>("lumina_update") {
@@ -180,6 +198,8 @@ impl Executor {
         }
     }
 
+    /// 执行单步：先排空 Lua 命令缓冲，再执行一条脚本语句。
+    /// 返回 `true` 表示脚本暂停等待输入（对话/选项），`false` 表示可继续步进。
     pub fn step(&mut self, ctx: &mut Ctx) -> bool {
         if self.process_lua_commands(ctx) {
             return false;
@@ -203,6 +223,12 @@ impl Executor {
 
     fn get_block_arc(&self, name: &str) -> Option<Arc<[Stmt]>> {
         self.manager.get_label(name)
+    }
+
+    /// 仅排空 Lua 命令缓冲区，不推进脚本。
+    /// 在 blocked_by_screen 期间也需调用，以确保 Lua 动画（tween）的 transform 命令被处理。
+    pub fn drain_commands(&mut self, ctx: &mut Ctx) {
+        self.process_lua_commands(ctx);
     }
 
     fn process_lua_commands(&mut self, ctx: &mut Ctx) -> bool {
@@ -239,6 +265,12 @@ impl Executor {
                 },
                 LuaCommand::MarkDynamic { name } => {
                     self.dynamic_registry.insert(name);
+                }
+                LuaCommand::ShowScreen { id, overlay } => {
+                    ctx.push(OutputEvent::ShowScreen { id, overlay });
+                }
+                LuaCommand::HideScreen(id) => {
+                    ctx.push(OutputEvent::HideScreen { id });
                 }
             }
         }

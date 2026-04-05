@@ -7,6 +7,7 @@ pub struct Painter {
 }
 
 impl Painter {
+    /// 创建画笔实例（无状态，绘制参数按帧传入）。
     pub fn new() -> Self {
         Self {}
     }
@@ -20,6 +21,8 @@ impl Painter {
         }
     }
 
+    /// 将动画器中所有精灵按 z-index 排序后绘制到画布：
+    /// 纹理过渡中的精灵使用 transition shader，其余直接绘制并应用 alpha。
     pub fn paint(
         &mut self,
         ui: &mut impl UiRenderer,

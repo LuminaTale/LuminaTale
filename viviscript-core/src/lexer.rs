@@ -104,6 +104,7 @@ pub struct Lexer<'a> {
 }
 
 impl<'a> Lexer<'a> {
+    /// 用源码字符串构造词法分析器，从第 1 行开始计数。
     pub fn new(src: &'a str) -> Self {
         Lexer {
             chars: src.chars().peekable(),
@@ -312,7 +313,7 @@ impl<'a> Lexer<'a> {
 
         while let Some(&c) = self.chars.peek(){
             match c {
-                '0'..'9' => s.push(self.bump().unwrap()),
+                '0'..='9' => s.push(self.bump().unwrap()),
                 '.' if allow_dot => {
                     allow_dot = false;
                     s.push(self.bump().unwrap());

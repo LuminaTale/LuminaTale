@@ -1,4 +1,6 @@
 use std::collections::HashMap;
+use std::sync::Arc;
+use viviscript_core::ast::UiStmt;
 
 #[derive(Debug, Clone)]
 pub struct LayoutConfig {
@@ -55,6 +57,13 @@ pub enum OutputEvent {
     RegisterLayout { name: String, config: LayoutConfig },
     RegisterTransition { name: String, config: TransitionConfig },
 
+    /// vivi screen 定义被执行时，注册到渲染器的 registry
+    RegisterScreen { id: String, def: Arc<[UiStmt]> },
+    /// 触发显示一个已注册的 screen
+    ShowScreen { id: String, overlay: bool },
+    /// 隐藏一个 screen
+    HideScreen { id: String },
+
     StepDone,
     End,
 }
@@ -63,6 +72,8 @@ pub enum OutputEvent {
 pub enum InputEvent {
     ChoiceMade { index: usize },
     Continue,
+    /// 从 UI 按钮触发的 label 跳转
+    Jump(String),
     Exit,
     SaveRequest { slot: u32 },
     LoadRequest { slot: u32 },

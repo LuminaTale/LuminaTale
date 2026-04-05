@@ -91,7 +91,7 @@ impl Typewriter {
         self.finished = true;
     }
 
-    pub(crate) fn is_active(&self) -> bool {
+    pub fn is_active(&self) -> bool {
         !self.finished
     }
 }

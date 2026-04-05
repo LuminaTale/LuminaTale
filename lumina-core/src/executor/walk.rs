@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 use std::ops::Add;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use viviscript_core::ast::{Stmt, AudioAction, ShowAttr, Transition};
 use regex::Regex;
 use mlua::Lua;
@@ -47,6 +47,8 @@ fn interpolate(lua: &Lua, text: &str) -> String {
     }).to_string()
 }
 
+/// 解释执行单条 AST 语句，返回产生的输出事件列表及下一步行为。
+/// `dynamic_set` 包含由 Lua 注册的动态过渡效果名称，遇到时交由 Lua tween 处理。
 pub fn walk_stmt(ctx: &mut Ctx, lua: &Lua, stmt: &Stmt, dynamic_set: &HashSet<String>) -> StmtEffect {
     log::trace!("walk_stmt: {:?}", stmt);
 
@@ -73,7 +75,12 @@ pub fn walk_stmt(ctx: &mut Ctx, lua: &Lua, stmt: &Stmt, dynamic_set: &HashSet<St
             for i in &processed_lines{
                 ctx.dialogue_history.push(DialogueRecord {speaker: None, text: i.clone(), voice_path: None});
             }
+            let joined = processed_lines.join("\n");
             events.push(OutputEvent::ShowNarration { lines: processed_lines });
+            // Lua 回调（开发者可选实现）
+            if let Ok(f) = lua.globals().get::<mlua::Function>("lumina_on_narration") {
+                let _ = f.call::<()>(joined);
+            }
             NextAction::WaitInput
         },
         Stmt::Dialogue {speaker, text, voice_index, ..} => {
@@ -107,7 +114,11 @@ pub fn walk_stmt(ctx: &mut Ctx, lua: &Lua, stmt: &Stmt, dynamic_set: &HashSet<St
             let final_text = interpolate(lua, text);
 
             ctx.dialogue_history.push(DialogueRecord {speaker: Some(name.clone()), text: final_text.clone(), voice_path: path.clone()});
-            events.push(OutputEvent::ShowDialogue {name, content: final_text.clone()});
+            events.push(OutputEvent::ShowDialogue {name: name.clone(), content: final_text.clone()});
+            // Lua 回调（开发者可选实现）
+            if let Ok(f) = lua.globals().get::<mlua::Function>("lumina_on_dialogue") {
+                let _ = f.call::<()>((name, final_text));
+            }
             NextAction::WaitInput
         },
         Stmt::Audio {action, channel, resource, options, ..} => {
@@ -287,7 +298,12 @@ pub fn walk_stmt(ctx: &mut Ctx, lua: &Lua, stmt: &Stmt, dynamic_set: &HashSet<St
                 (arm_id, a.body.clone())
             }).collect();
 
-            ctx.push(OutputEvent::ShowChoice { title: processed_title, options });
+            ctx.push(OutputEvent::ShowChoice { title: processed_title.clone(), options: options.clone() });
+            // Lua 回调（开发者可选实现）
+            if let Ok(f) = lua.globals().get::<mlua::Function>("lumina_on_choice") {
+                let lua_opts: Vec<String> = options;
+                let _ = f.call::<()>((processed_title, lua_opts));
+            }
             NextAction::WaitChoice(arms_data)
         },
         Stmt::If {branches, else_branch, id, ..} => {
@@ -318,6 +334,13 @@ pub fn walk_stmt(ctx: &mut Ctx, lua: &Lua, stmt: &Stmt, dynamic_set: &HashSet<St
         },
         Stmt::Jump {target,..} => NextAction::Jump(target.clone()),
         Stmt::Call {target,..} => NextAction::Call(target.clone()),
+        Stmt::ScreenDef { id, root, .. } => {
+            events.push(OutputEvent::RegisterScreen {
+                id: id.clone(),
+                def: Arc::from(root.as_slice()),
+            });
+            NextAction::Continue
+        },
         _=> {NextAction::Continue}
 
     };

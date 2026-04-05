@@ -6,6 +6,7 @@ pub mod renderer;
 pub mod storager;
 pub mod config;
 pub mod manager;
+pub mod typewriter_bridge;
 
 pub use runtime::Ctx;
 pub use executor::Executor;

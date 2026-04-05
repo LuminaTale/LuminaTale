@@ -8,6 +8,7 @@ pub struct Vec2 {
 }
 
 impl Vec2 {
+    /// 构造二维向量。
     pub fn new(x: f32, y: f32) -> Self { Self { x, y } }
 }
 
@@ -35,6 +36,7 @@ pub struct RenderSprite {
 }
 
 impl RenderSprite {
+    /// 创建渲染精灵，初始 alpha=1、scale=1，位置待后续设置。
     pub fn new(target: String, texture: String, attrs: Vec<String>) -> Self {
         Self {
             target,
@@ -55,6 +57,7 @@ impl RenderSprite {
             pending_data: false,
         }
     }
+    /// 拼接贴图名和属性后缀，如 `"ch1_happy"`。
     pub fn full_asset_name(&self) -> String {
         if self.attrs.is_empty() {
             return self.texture.clone();
@@ -67,6 +70,7 @@ impl RenderSprite {
         name
     }
 
+    /// 按名称设置精灵属性（x/y/alpha/scale/offset_x 等），同时清除 `pending_data` 标记。
     pub fn set_prop(&mut self, key: &str, val: f32) {
         self.pending_data = false;
         match key {
@@ -85,6 +89,7 @@ impl RenderSprite {
         }
     }
 
+    /// 按名称读取精灵属性当前值，未知属性返回 `0.0`。
     pub fn get_prop(&self, key: &str) -> f32 {
         match key {
             "x" => self.pos.x,
@@ -118,6 +123,7 @@ pub struct SceneAnimator {
 }
 
 impl SceneAnimator {
+    /// 创建场景动画器，预置 left/center/right 三个内置布局。
     pub fn new() -> Self {
         let mut layouts = HashMap::new();
         layouts.insert("center".into(), LayoutConfig { x: 0.5, y: 1.0, anchor_x: 0.5, anchor_y: 1.0 });
@@ -132,21 +138,26 @@ impl SceneAnimator {
             trans_registry: HashMap::new(),
         }
     }
+    /// 注册或覆盖一个命名布局（屏幕位置/锚点配置）。
     pub fn handle_register_layout(&mut self, name: String, config: LayoutConfig) {
         self.layouts.insert(name, config);
     }
+    /// 注册或覆盖一个静态过渡效果配置（由 Lua `lumina.register_transition` 触发）。
     pub fn handle_register_transition(&mut self, name: String, config: TransitionConfig) {
         self.trans_registry.insert(name, config);
     }
 
+    /// 更新逻辑分辨率，影响布局计算中的绝对坐标转换。
     pub fn resize(&mut self, w: f32, h: f32) {
         self.screen_size = (w, h);
     }
 
+    /// 若有仍在播放的补间动画则返回 `true`。
     pub fn is_busy(&self) -> bool {
         !self.generic_tweens.is_empty()
     }
 
+    /// 立即跳过所有进行中的补间动画到终态（用于快进/跳过）。
     pub fn finish_all_animations(&mut self) {
         if self.generic_tweens.is_empty() { return; }
 
@@ -167,6 +178,7 @@ impl SceneAnimator {
         }
     }
 
+    /// 推进所有补间动画一帧，清理已完成动画及 alpha 为 0 的精灵。
     pub fn update(&mut self, dt: f32) {
         let mut finished = Vec::new();
 
@@ -209,6 +221,7 @@ impl SceneAnimator {
         });
     }
 
+    /// 修改精灵属性：`duration=0` 立即生效，否则创建补间动画（由 Lua `lumina.transform` 触发）。
     pub fn handle_modify_visual(
         &mut self,
         target: String,
@@ -234,6 +247,8 @@ impl SceneAnimator {
         }
     }
 
+    /// 添加新精灵到场景。`defer_visual=true` 时设置 `pending_data` 标记，精灵在
+    /// 收到首次 `modify_visual` 前不渲染（用于 Lua 动态入场效果）。
     pub fn handle_new_sprite(&mut self, target: String, texture: String, pos_str: Option<&str>, trans: Option<String>, attrs: Vec<String>, defer_visual: bool) {
         let mut sprite = RenderSprite::new(target.clone(), texture, attrs);
 
@@ -278,6 +293,7 @@ impl SceneAnimator {
         self.sprites.insert(target, sprite);
     }
 
+    /// 更新已有精灵的位置/属性，可附带过渡动画；过渡未找到时直接切换。
     pub fn handle_update_sprite(&mut self, target: String, trans: String, new_pos: Option<&str>, new_attrs: Vec<String>) {
         if let Some(sprite) = self.sprites.get_mut(&target) {
             let target_pos_vec = if let Some(pos_key) = new_pos {
@@ -360,6 +376,7 @@ impl SceneAnimator {
         }
     }
 
+    /// 隐藏精灵：有过渡则播放退场动画（alpha→0），动画结束后自动从 sprites 中移除；无过渡则立即删除。
     pub fn handle_hide_sprite(&mut self, target: String, trans: Option<String>) {
         if let Some(t_name) = trans {
             if let Some(cfg) = self.trans_registry.get(&t_name).cloned() {
@@ -378,6 +395,7 @@ impl SceneAnimator {
         self.generic_tweens.retain(|t| t.target != target);
     }
 
+    /// 切换背景场景：清除非 bg 精灵，若背景已存在则执行纹理过渡，否则直接创建。
     pub fn handle_new_scene(&mut self, bg_name: Option<String>, trans: String) {
         self.sprites.retain(|key, _| key == "bg");
         self.generic_tweens.retain(|t| t.target == "bg");

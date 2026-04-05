@@ -8,8 +8,10 @@ use mlua::{Lua, LuaSerdeExt, Table};
 use log::{error, info};
 use lumina_shared::config;
 use crate::config::SystemConfig;
+use crate::typewriter_bridge::TypewriterBridge;
 
-pub fn init_lua(lua: &Lua) -> CommandBuffer {
+/// 初始化 Lua 环境：设置 package.path、注册 `lumina.*` API，返回命令缓冲区。
+pub fn init_lua(lua: &Lua, tw_bridge: &TypewriterBridge) -> CommandBuffer {
     let cmd_buffer = CommandBuffer::new();
 
     let sys_cfg: SystemConfig = config::get("system");
@@ -50,12 +52,15 @@ pub fn init_lua(lua: &Lua) -> CommandBuffer {
     api::system::register(lua, &lumina, &cmd_buffer).expect("Failed to register system API");
     api::audio::register(lua, &lumina, &cmd_buffer).expect("Failed to register audio API");
     api::visual::register(lua, &lumina, &cmd_buffer).expect("Failed to register visual API");
+    api::ui::register(lua, &lumina, &cmd_buffer).expect("Failed to register UI API");
+    api::typewriter::register(lua, &lumina, tw_bridge).expect("Failed to register typewriter API");
 
     globals.set("_rust_log", rust_log).expect("Failed to set rust_log");
     globals.set("lumina", lumina).expect("Failed to set Lumina engine");
     cmd_buffer
 }
 
+/// 在 Lua 中求值布尔表达式，出错时返回 `false`。
 pub fn evel_bool(lua: &Lua, expr: &str) -> bool {
     let chunk = format!("return {}", expr);
 
@@ -65,6 +70,7 @@ pub fn evel_bool(lua: &Lua, expr: &str) -> bool {
     })
 }
 
+/// 将 JSON 数据注入 Lua 全局 `f` 表（游戏变量）。
 pub fn inject_vars(lua: &Lua, data: &serde_json::Value) {
     let globals = lua.globals();
 
@@ -80,6 +86,7 @@ pub fn inject_vars(lua: &Lua, data: &serde_json::Value) {
     }
 }
 
+/// 从 Lua 全局 `f` 表中提取游戏变量，序列化为 JSON。
 pub fn extract_vars(lua: &Lua) -> serde_json::Value {
     let globals = lua.globals();
 
@@ -93,6 +100,7 @@ pub fn extract_vars(lua: &Lua) -> serde_json::Value {
     }
 }
 
+/// 在 Lua 中将表达式求值为字符串，用于文本插值 `{expr}`。
 pub fn eval_string(lua: &Lua, expr: &str) -> String {
     let chunk = format!("return tostring({})", expr);
 
@@ -105,6 +113,7 @@ pub fn eval_string(lua: &Lua, expr: &str) -> String {
     }
 }
 
+/// 将 JSON 数据注入 Lua 全局 `sf` 表（跨存档持久变量）。
 pub fn inject_sf(lua: &Lua, data: &serde_json::Value) {
     let globals = lua.globals();
     match lua.to_value(data) {
@@ -117,6 +126,7 @@ pub fn inject_sf(lua: &Lua, data: &serde_json::Value) {
     }
 }
 
+/// 从 Lua 全局 `sf` 表中提取持久变量，序列化为 JSON。
 pub fn extract_sf(lua: &Lua) -> serde_json::Value {
     let globals = lua.globals();
     if let Ok(val) = globals.get::<mlua::Value>("sf") {

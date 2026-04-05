@@ -15,6 +15,8 @@ pub enum LuaCommand {
     RegisterLayout { name: String, config: crate::event::LayoutConfig },
     RegisterTransition { name: String, config: crate::event::TransitionConfig },
     MarkDynamic { name: String },
+    ShowScreen { id: String, overlay: bool },
+    HideScreen(String),
 }
 
 #[derive(Debug,Clone)]

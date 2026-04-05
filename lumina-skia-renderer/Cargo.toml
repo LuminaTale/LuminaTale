@@ -16,3 +16,5 @@ lumina-shared = { path = "../lumina-shared" }
 kira = { version = "0.11.0" ,features = ["mp3", "ogg", "wav"] }
 lumina-ui = {path = "../lumina-ui"}
 crossbeam-channel = "0.5.15"
+viviscript-core = { path = "../viviscript-core" }
+mlua = { version = "0.11.5", features = ["lua54", "vendored"] }
